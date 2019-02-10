@@ -1,0 +1,3 @@
+[submodule "node_cats_sample"]
+	path = node_cats_sample
+	url = https://github.com/asingh57/node_cats_sample.git
