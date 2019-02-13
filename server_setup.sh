@@ -54,14 +54,29 @@ port=$[ctrl_ssh+100]
 db_ssh=$(get_free_port)
 run_command bash docker_setup_script.sh -s $db_ssh:22 -p 443:443 $db_server_name
 web_server_name="web_serv"
-#give access to ansible
-
-
-
 port=$[db_ssh+100]
 web_ssh=$(get_free_port)
 run_command bash docker_setup_script.sh -s $web_ssh:22 -p 3306:3306 -g keystore $web_server_name
-#give access to ansible
+
+
+printf "\n\n\n\n\n"
+docker exec $db_server_name bash -c "cat /root/.ssh/authorized_keys"
+docker exec $web_server_name bash -c "cat /root/.ssh/authorized_keys"
+printf "\n\n\n\n\n"
+############################
+#give access of web and db servers to ansible control machine
+ctrl_key=$( cat keystore/$control_machine_name.pub )
+echo Final key is: $ctrl_key
+docker exec $db_server_name bash -c "echo $ctrl_key >> /root/.ssh/authorized_keys"
+docker exec $web_server_name bash -c "echo $ctrl_key >> /root/.ssh/authorized_keys"
+docker exec $db_server_name /etc/init.d/ssh restart
+docker exec $web_server_name /etc/init.d/ssh restart
+unset ctrl_key
+###########################
+printf "\n\n\n\n\n"
+docker exec $db_server_name bash -c "cat /root/.ssh/authorized_keys"
+docker exec $web_server_name bash -c "cat /root/.ssh/authorized_keys"
+printf "\n\n\n\n\n"
 
 
 echo Control server ssh port $ctrl_ssh

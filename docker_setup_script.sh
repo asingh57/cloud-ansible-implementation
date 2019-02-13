@@ -14,8 +14,9 @@ usage(){
 	printf " -s installs ssh server, sets default port and copies ssh key to authorized keys of the docker\n"	
 	printf " -g generates a rsa key and copies the public key from the docker to mentioned host machine location\n"
 	printf "\t This public key is needed for two things"
-	printf "\t\t as a authorized_key ansible control_server must generate and add to db & web servers to have ssh access"
+	printf "\t\t as a public key ansible control_server must generate and add to db & web servers' authorized keys file to have ssh access"
 	printf "\t\t as a deploy key web server must generate to be able to clone from git (needs to be placed in the webserver github repo)"
+	exit 1
 }
 #################
 
@@ -23,7 +24,7 @@ usage(){
 #runs a given command
 run_command(){
 	if ! ("$@"); then
-		echo "$1 failed ">&2
+		echo "$@ failed ">&2
 		echo 'Docker setup failed, rolling back changes' >&2;
 		if [[ ! -z "$hash" ]]
 			then
@@ -91,17 +92,17 @@ while getopts ':p:s:g:' opt; do
             p+=(${OPTARG})
 			
             ;;        
-		s)
+	s)
             p+=(${OPTARG})
-			###############
-			#separate ssh port
-			IFS=: read -r externalssh internalssh <<< ${OPTARG}	
-			###############
+		###############
+		#parse ssh port
+		IFS=: read -r externalssh internalssh <<< ${OPTARG}	
+		###############
             ;;		
-		g)
+	g)
             g=${OPTARG}
             ;;		
-		*)
+	*)
             usage
             ;;
     esac
@@ -131,8 +132,9 @@ setupfilename=internal_script_$(date +"%s").sh
 
 setupfile="\
 run_command(){ \n
+	echo \"\$@\"
         if ! (\"\$@\"); then \n
-                echo 'Docker setup failed, rolling back changes' >&2; \n
+                echo 'generated script command failed' >&2; \n
                 exit 126 #command cannot execute \n
         fi \n
 } \n
@@ -152,17 +154,20 @@ setupfile+="run_command apt-get -y update \n"
 #############################
 if [[ ! -z "$internalssh" ]]; then #if ssh is required to be installed
 
+echo "Internal ssh enabled ">&2
 
 	setupfile+="\
 run_command apt-get -y install openssh-server \n
-run_command printf 'PubkeyAuthentication yes \\\nPasswordAuthentication no\\\nPort $internalssh\\\nPermitRootLogin yes\\\n' > /etc/ssh/sshd_config \n
-mkdir ~/.ssh
-chmod 700 ~/.ssh
+echo -e \"PubkeyAuthentication yes \\\nPasswordAuthentication no\\\nPort $internalssh\\\nPermitRootLogin yes\\\n\" > /etc/ssh/sshd_config \n
+run_command mkdir -p ~/.ssh
+run_command chmod 700 ~/.ssh
 run_command touch ~/.ssh/authorized_keys \n
 run_command chmod 644 ~/.ssh/authorized_keys \n
 "
+
 	if [[ ! -z "$g" ]]; then # generate public key from server
-		setupfile+="run_command ssh-keygen -b 2048 -t rsa -f ~/.ssh/sshkey -q -N \"\" \n" 
+		echo "server ssh keygen enabled ">&2
+		setupfile+="run_command ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa \n"
 	fi
 
 setupfile+="run_command /etc/init.d/ssh restart \n" 
@@ -170,17 +175,18 @@ fi
 #############################
 
 #############################
-if [[ ( machine_type == "control_machine")]] 
+if [[ ( $machine_type == "control_machine" ) ]] 
 then
+echo "Device is a control machine ">&2
 	setupfile+="\
 run_command apt-get -y update \n
 run_command apt-get -y install software-properties-common \n
 run_command apt-get -y update \n
 run_command apt-get -y install gpg \n
-run_command apt-add-repository ppa:ansible/ansible \n
-run_command apt-get -y update \n
-run_command apt-get -y install ansible \n 
+run_command echo -e \"\\\n\" | apt-add-repository ppa:ansible/ansible \n
+run_command apt install -y ansible \n 
 "
+#run_command apt-get update \n
 fi
 
 #write to config script and run
@@ -192,23 +198,27 @@ run_command docker exec -it $container_name bash -c "ls /"
 run_command docker exec -it $container_name bash -c "chmod +rx /$setupfilename"
 run_command docker exec -it $container_name bash -c "./$setupfilename"
 
-if [[ ! -z "$g" ]]; then # generate public key from server
+if [[ ! -z "$g" ]]; then # Copy server's public key to given folder name
+	echo "public key is being copied from the server ">&2
 	run_command mkdir -p $g
-	run_command [ -e file ] && rm $g/$container_name.pub
-	run_command docker cp $container_name:~/.ssh/id_rsa.pub $g/$container_name.pub
+	file="$g/$container_name.pub"
+	if [ -f "$file" ];then # delete file if it exists
+		run_command rm $g/$container_name.pub
+	fi
+	run_command docker cp $container_name:/root/.ssh/id_rsa.pub $g/$container_name.pub
 fi
 
 ###############
 
 
 if [[ ! -z "$internalssh" ]];then #add to ssh keys host's key and ormuco's key
-
+	echo "public keys added to the server ">&2
 	auth_key_serv=$( cat ~/.ssh/ormuco_ssh_key.pub )
-	run_command docker exec $container_name bash -c "echo $auth_key_serv >> ~/.ssh/authorized_keys"
+	run_command docker exec $container_name bash -c "echo $auth_key_serv >> /root/.ssh/authorized_keys"
 
 	
 	auth_key_serv=$( cat ~/.ssh/id_rsa.pub )
-	run_command docker exec $container_name bash -c "echo $auth_key_serv >> ~/.ssh/authorized_keys"
+	run_command docker exec $container_name bash -c "echo $auth_key_serv >> /root/.ssh/authorized_keys"
 	run_command docker exec $container_name /etc/init.d/ssh restart
 	unset auth_key_serv
 
