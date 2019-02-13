@@ -1,19 +1,21 @@
 #!/bin/bash
+
+#program to setup individual dockers
+
+
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
 ###################
 #displays correct usage
 usage(){
-	printf "\nUsage: $0 [-p externalport:internalport] [-d externalport:internalport] [-r ipaddress] [-w externalport:internalport] [-s externalport:internalport] [-c] control_machine|web_server|db_server container_name|custom <docker_name> \n"
-	printf "\control_machine: sets up control container with ansible installed\n"
-	printf "\web_server: sets up web server in container\n"
-	printf "\t-w webport is required if web_server is chosen\n"
-	printf "\db_server: sets up mariadb in container\n"
-	printf "\t-d database port mapping from container to machine (required if db_server is chosen)\n"
-	printf "\t-r restricts mariadb to listen to only one ip address\n"
-	printf " -p allows any other ports to be open\n"
-	printf " -s installs ssh server and sets default port\n"
-	printf " -c copies ~/.ssh/id_rsa.pub into docker's ~/.ssh/authorized_keys and disables password logon\n"	
+	printf "\nUsage: $0 [-p externalport:internalport] [-s externalport:internalport] [-g hostlocation] [<control_machine>] <container_name> \n"
+	printf "\control_machine: sets up control container with ansible\n"
+	printf " -p allows any TCP ports to be opened and maps them to the host\n"
+	printf " -s installs ssh server, sets default port and copies ssh key to authorized keys of the docker\n"	
+	printf " -g generates a rsa key and copies the public key from the docker to mentioned host machine location\n"
+	printf "\t This public key is needed for two things"
+	printf "\t\t as a authorized_key ansible control_server must generate and add to db & web servers to have ssh access"
+	printf "\t\t as a deploy key web server must generate to be able to clone from git (needs to be placed in the webserver github repo)"
 }
 #################
 
@@ -21,7 +23,7 @@ usage(){
 #runs a given command
 run_command(){
 	if ! ("$@"); then
-		echo "$1 failed"
+		echo "$1 failed ">&2
 		echo 'Docker setup failed, rolling back changes' >&2;
 		if [[ ! -z "$hash" ]]
 			then
@@ -29,11 +31,11 @@ run_command(){
 			docker container rm $hash
 			if [[ ! -z "$setupfilename" ]]
 			then
-				echo " "
-				#rm $setupfilename #delete the config file
-			fi
-			exit 126 #command cannot execute
+				
+				rm $setupfilename #delete the config file
+			fi			
 		fi
+		exit 126 #command cannot execute
 	fi
 }
 ###################
@@ -66,163 +68,109 @@ fi
 if [[ ( $# == "--help") ||  $# == "-h" ]] 
 then 
 	usage
-	exit 0
+	exit 1
 fi
 ##############
 
 
 
-###################
-#device type invalid
-if [[ ( ${@: -2:1} != "other") && ( ${@: -2:1} != "control_machine") &&  (${@: -2:1} != "web_server") &&  (${@: -2:1} != "db_server") ]] 
-then 
-	printf "error: ${@: -2:1} is not a valid device type" >&2
-	usage
-	exit 128
-else
+if [[( ${@: -2:1} == "control_machine" || ${@: -2:1} == "web_server" )]] #ansible will be installed on this server
+then
 	machine_type=${@: -2:1}
 fi
-###################
+
+
 
 container_name=${@: -1}
 
 p=()
-
-while getopts ':p:w:s:c:d:r:' opt; do
+while getopts ':p:s:g:' opt; do
   case "$opt" in
         p)
 			check_valid_port $OPTARG
             p+=(${OPTARG})
 			
-            ;;
-        w)
-			check_valid_port $OPTARG
-            w=${OPTARG}
-            ;;
+            ;;        
 		s)
-            s=${OPTARG}
+            p+=(${OPTARG})
 			###############
 			#separate ssh port
-			IFS=: read -r externalssh internalssh <<< "$s"	
+			IFS=: read -r externalssh internalssh <<< ${OPTARG}	
 			###############
-            ;;
-		c)
-            c=true
-            ;;
-		d)
-            check_valid_port $OPTARG
-            d=${OPTARG}
-            ;;
-		r) 
-			r=${OPTARG}
-			;;
+            ;;		
+		g)
+            g=${OPTARG}
+            ;;		
 		*)
             usage
             ;;
     esac
 done
 
-
-#check if webport is enabled when web_server is enabled
-if [ "$machine_type" == "web_server" ]; then
-	if [ -z "$w" ];then
-		echo 'error: web port is missing' >&2
-		usage
-		exit 128
-	fi
-	re='^[0-9]+$'
-	IFS=: read -r externalweb internalweb <<< "$w"	
-elif [ "$machine_type" == "db_server" ]; then
-	if [ -z "$d" ];then
-		echo 'error: db port is missing' >&2
-		usage
-		exit 128
-	fi
-	re='^[0-9]+$'
-	IFS=: read -r externaldb internaldb <<< "$d"
-fi
-
-
-
-
-###############
-#Create docker
+#create docker with given info
 dock_create_cmd='docker run -d -t'
-
-###########
-#set port mappings
 p_switch=' -p '
 for i in "${p[@]}"
 do	
 	dock_create_cmd=$dock_create_cmd$p_switch$i
 done
-if [[ ! -z "$w" ]]; then
-	dock_create_cmd=$dock_create_cmd$p_switch$w
-fi
-if [[ ! -z "$s" ]]; then
-	dock_create_cmd=$dock_create_cmd$p_switch$s
-fi
-if [[ ! -z "$d" ]]; then
-	dock_create_cmd=$dock_create_cmd$p_switch$d
-fi
 
 nameplug=' --name '
 dist=' debian'
-dock_create_cmd=$dock_create_cmd$nameplug${@: -1}$dist
+dock_create_cmd=$dock_create_cmd$nameplug$container_name$dist
+#############################
 
-
-
-hash=$($dock_create_cmd)
-
-
-if [ 0 != $? ]; then
-	echo 'Docker setup failed, rolling back changes' >&2;
+#create docker and store the hash
+if ! (hash=$($dock_create_cmd)); then
+	echo 'Docker creation failed, rolling back changes' >&2;
 	exit 126 #command cannot execute
 fi
-
-###############
-
 
 setupfilename=internal_script_$(date +"%s").sh
 
 
-#-------------------------------------------------
-#setup for script to run inside container
-
-#utility bash functions
 setupfile="\
 run_command(){ \n
-	if ! (\"\$@\"); then \n
-		echo 'Docker setup failed, rolling back changes' >&2; \n
-		exit 126 #command cannot execute \n
-	fi \n
-} \n 
-run_command apt-get update \n 
+        if ! (\"\$@\"); then \n
+                echo 'Docker setup failed, rolling back changes' >&2; \n
+                exit 126 #command cannot execute \n
+        fi \n
+} \n
+run_command apt-get update \n
 
 check_file_exists(){ \n
-	if [ ! -f \$1 ]; then\n
-		echo '\$1: file not found, rolling back changes' >&2; \n
-		exit 126 #command cannot execute \n
-	fi \n
+        if [ ! -f \$1 ]; then\n
+                echo '\$1: file not found, rolling back changes' >&2; \n
+                exit 126 #command cannot execute \n
+        fi \n
 } \n
 "
+setupfile+="run_command apt-get -y update \n"
+
+
+
 #############################
 if [[ ! -z "$internalssh" ]]; then #if ssh is required to be installed
+
+
 	setupfile+="\
-run_command apt-get -y update \n
 run_command apt-get -y install openssh-server \n
 run_command printf 'PubkeyAuthentication yes \\\nPasswordAuthentication no\\\nPort $internalssh\\\nPermitRootLogin yes\\\n' > /etc/ssh/sshd_config \n
 mkdir ~/.ssh
 chmod 700 ~/.ssh
 run_command touch ~/.ssh/authorized_keys \n
 run_command chmod 644 ~/.ssh/authorized_keys \n
-run_command /etc/init.d/ssh restart \n 
-" 
+"
+	if [[ ! -z "$g" ]]; then # generate public key from server
+		setupfile+="run_command ssh-keygen -b 2048 -t rsa -f ~/.ssh/sshkey -q -N \"\" \n" 
+	fi
+
+setupfile+="run_command /etc/init.d/ssh restart \n" 
 fi
 #############################
 
-
-if [[ ( ${@: -2:1} == "control_machine")]] 
+#############################
+if [[ ( machine_type == "control_machine")]] 
 then
 	setupfile+="\
 run_command apt-get -y update \n
@@ -233,29 +181,7 @@ run_command apt-add-repository ppa:ansible/ansible \n
 run_command apt-get -y update \n
 run_command apt-get -y install ansible \n 
 "
-elif [[ ( ${@: -2:1} == "web_server")]]
-then
-	setupfile+="\
-run_command apt install nodejs npm \n
-"
-elif [[ ( ${@: -2:1} == "db_server")]]
-then
-	setupfile+="\
-run_command apt-get -y install mariadb-server \n
-check_file_exists /etc/mysql/my.cnf \n
-run_command printf '\\\n[mysqld]\nport=$internaldb'>> /etc/mysql/my.cnf \n
-"
-	if [[ ! -z "$r" ]] #restrict ip access
-	then
-setupfile+="\
-run_command printf '\\\nbind-address=127.0.0.1'>> /etc/mysql/my.cnf \n
-"
-	fi
-	setupfile+="\
-run_command service mysql restart \n
-"
 fi
-
 
 #write to config script and run
 printf "$setupfile"> $setupfilename
@@ -265,23 +191,38 @@ run_command docker cp $setupfilename $container_name:/$setupfilename
 run_command docker exec -it $container_name bash -c "ls /"
 run_command docker exec -it $container_name bash -c "chmod +rx /$setupfilename"
 run_command docker exec -it $container_name bash -c "./$setupfilename"
+
+if [[ ! -z "$g" ]]; then # generate public key from server
+	run_command mkdir -p $g
+	run_command [ -e file ] && rm $g/$container_name.pub
+	run_command docker cp $container_name:~/.ssh/id_rsa.pub $g/$container_name.pub
+fi
+
 ###############
 
 
+if [[ ! -z "$internalssh" ]];then #add to ssh keys host's key and ormuco's key
 
+	auth_key_serv=$( cat ~/.ssh/ormuco_ssh_key.pub )
+	run_command docker exec $container_name bash -c "echo $auth_key_serv >> ~/.ssh/authorized_keys"
 
-if [[ ! -z "$internalssh" ]]; then #if ssh is required to be installed
+	
 	auth_key_serv=$( cat ~/.ssh/id_rsa.pub )
-	run_command docker exec $container_name bash -c "echo $auth_key_serv > ~/.ssh/authorized_keys"
+	run_command docker exec $container_name bash -c "echo $auth_key_serv >> ~/.ssh/authorized_keys"
 	run_command docker exec $container_name /etc/init.d/ssh restart
 	unset auth_key_serv
+
 fi
 
 
 
+echo $hash #print from console to stdout, the hash of the container we just created
+
+exit 0
 
 
-echo $hash #print from console, the hash of the container we just created
 
-#docker container stop $hash
-#docker container rm $hash
+
+
+
+
