@@ -77,9 +77,6 @@ docker exec $db_server_name bash -c "cat /root/.ssh/authorized_keys"
 docker exec $web_server_name bash -c "cat /root/.ssh/authorized_keys"
 
 ###########################
-#copy ansible playbooks into the ansible machine
-docker exec $control_machine_name bash -c "mkdir /root/ansible_docs"
-docker cp ansible_docs/. $control_machine_name:/root/ansible_docs/
 
 
 echo Control server running at ssh port $ctrl_ssh
