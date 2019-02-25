@@ -88,16 +88,16 @@ You may also wish to copy your ssl certs
 
 Replace your cert names/directories accordingly and make sure to check the permissions on certs
 ```bash
-<i>#</i>ssl for web site
+#ssl for web site
 docker cp /etc/ssl/private/abhisingh_ca.ca-bundle ctrl_mach:/etc/ssl/private/abhisingh_ca.ca-bundle
 docker cp /etc/ssl/private/abhisingh_ca.key ctrl_mach:/etc/ssl/private/abhisingh_ca.key 
 docker cp /etc/ssl/certs/abhisingh_ca.crt ctrl_mach:/etc/ssl/certs/abhisingh_ca.crt
-<i>#</i>ssl for db server
+#ssl for db server
 docker exec ctrl_mach mkdir /etc/ssl/private/mariadb/
 docker cp /etc/ssl/private/mariadb/ca-cert.pem ctrl_mach:/etc/ssl/private/mariadb/ca-cert.pem
 docker cp /etc/ssl/private/mariadb/server-key.pem ctrl_mach:/etc/ssl/private/mariadb/server-key.pem
 docker cp /etc/ssl/private/mariadb/server-cert.pem ctrl_mach:/etc/ssl/private/mariadb/server-cert.pem
-<i>#</i>schema for db
+#schema for db
 docker exec ctrl_mach mkdir /config
 docker cp /config/schema.sql ctrl_mach:/config/schema.sql
 ```
@@ -105,7 +105,7 @@ docker cp /config/schema.sql ctrl_mach:/config/schema.sql
 Now that we have everything setup, we can simply ssh into the ctrl server using:
 ```bash
 ssh root@localhost -p 1024 
-<i>#</i>replace with whatever was assigned to you
+#replace with whatever was assigned to you
 ```
 
 Once the above have been configured, do
