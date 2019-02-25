@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#Author: Abhi Singh
 #program to setup individual dockers
 
 
@@ -8,7 +8,7 @@ OPTIND=1         # Reset in case getopts has been used previously in the shell.
 ###################
 #displays correct usage
 usage(){
-	printf "\nUsage: $0 [-p externalport:internalport] [-s externalport:internalport] [-g hostlocation] [<control_machine>] <container_name> \n"
+	printf "\nUsage: $0 [-p externalport:internalport] [-s externalport:internalport] [-g hostlocation] [<control_machine>|<database_server>|<other>] <container_name> \n"
 	printf "\control_machine: sets up control container with ansible\n"
 	printf " -p allows any TCP ports to be opened and maps them to the host\n"
 	printf " -s installs ssh server, sets default port and copies ssh key to authorized keys of the docker\n"	
@@ -26,16 +26,13 @@ run_command(){
 	if ! ("$@"); then
 		echo "$@ failed ">&2
 		echo 'Docker setup failed, rolling back changes' >&2;
-		if [[ ! -z "$hash" ]]
-			then
-			docker container stop $hash
-			docker container rm $hash
-			if [[ ! -z "$setupfilename" ]]
-			then
-				
-				rm $setupfilename #delete the config file
-			fi			
-		fi
+		
+		if [[ ! -z "$setupfilename" ]]
+		then
+			
+			rm $setupfilename #delete the config file
+		fi			
+	
 		exit 126 #command cannot execute
 	fi
 }
@@ -75,17 +72,20 @@ fi
 
 
 
-if [[( ${@: -2:1} == "control_machine" || ${@: -2:1} == "web_server" )]] #ansible will be installed on this server
+if [[( ${@: -2:1} == "control_machine" )]] #ansible will be installed on this server
 then
 	machine_type=${@: -2:1}
 fi
 
-
+if [[( ${@: -2:1} == "database_server" )]] #db image will be installed on this server
+then
+	machine_type=${@: -2:1}
+fi
 
 container_name=${@: -1}
 
 p=()
-while getopts ':p:s:g:' opt; do
+while getopts ':p:s:g:x:' opt; do
   case "$opt" in
         p)
 			check_valid_port $OPTARG
@@ -102,6 +102,9 @@ while getopts ':p:s:g:' opt; do
 	g)
             g=${OPTARG}
             ;;		
+    x)
+            x=${OPTARG}
+            ;;	
 	*)
             usage
             ;;
@@ -110,7 +113,7 @@ done
 
 #create docker with given info
 dock_create_cmd='docker run -d -t'
-p_switch=' -p '
+p_switch=" -p :"
 for i in "${p[@]}"
 do	
 	dock_create_cmd=$dock_create_cmd$p_switch$i
@@ -118,6 +121,11 @@ done
 
 nameplug=' --name '
 dist=' debian'
+
+if [[ ( $machine_type == "database_server" ) ]] 
+then
+    dist=" -e MYSQL_ROOT_PASSWORD=$x -e MYSQL_DATABASE=default mariadb/server:10.3"
+fi
 dock_create_cmd=$dock_create_cmd$nameplug$container_name$dist
 #############################
 
@@ -159,8 +167,9 @@ echo "Internal ssh enabled ">&2
 	setupfile+="\
 run_command apt-get -y install openssh-server \n
 echo -e \"PubkeyAuthentication yes \\\nPasswordAuthentication no\\\nPort $internalssh\\\nPermitRootLogin yes\\\n\" > /etc/ssh/sshd_config \n
-run_command mkdir -p ~/.ssh
-run_command chmod 700 ~/.ssh
+echo installed openssh server \n
+run_command mkdir -p ~/.ssh \n
+run_command chmod 700 ~/.ssh \n
 run_command touch ~/.ssh/authorized_keys \n
 run_command chmod 644 ~/.ssh/authorized_keys \n
 "
@@ -168,9 +177,11 @@ run_command chmod 644 ~/.ssh/authorized_keys \n
 	if [[ ! -z "$g" ]]; then # generate public key from server
 		echo "server ssh keygen enabled ">&2
 		setupfile+="run_command ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa \n"
+        setupfile+="echo ssh-keygen done \n"
 	fi
 
-setupfile+="run_command /etc/init.d/ssh restart \n" 
+setupfile+="run_command service ssh restart \n" 
+setupfile+="echo ssh completed \n"
 fi
 #############################
 
@@ -219,12 +230,16 @@ if [[ ! -z "$internalssh" ]];then #add to ssh keys host's key and ormuco's key
 	
 	auth_key_serv=$( cat ~/.ssh/id_rsa.pub )
 	run_command docker exec $container_name bash -c "echo $auth_key_serv >> /root/.ssh/authorized_keys"
-	run_command docker exec $container_name /etc/init.d/ssh restart
+	docker exec $container_name service ssh restart
 	unset auth_key_serv
 
 fi
 
-
+if [[ ! -z "$setupfilename" ]]
+then
+	
+	rm $setupfilename #delete the config file
+fi	
 
 echo $hash #print from console to stdout, the hash of the container we just created
 

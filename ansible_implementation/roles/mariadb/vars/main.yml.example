@@ -1,0 +1,27 @@
+---
+# vars file for mariadb
+
+#mariadb schema
+mariadb_schema_src: "/config/schema.sql"
+mariadb_schema_dest: "/config/"
+mariadb_schema_dest_file: "schema.sql"
+#db ssl sources
+ssl_ca_src: "/etc/ssl/private/mariadb/ca-cert.pem"
+ssl_key_src: "/etc/ssl/private/mariadb/server-key.pem"
+ssl_cert_src: "/etc/ssl/private/mariadb/server-cert.pem"
+ssl_ca_dest: "/etc/ssl/private"
+ssl_ca_dest_filename: "ca.pem"
+ssl_key_dest: "/etc/ssl/private"
+ssl_key_dest_filename: "key.pem"
+ssl_cert_dest: "/etc/ssl/certs"
+ssl_cert_dest_filename: "cert.pem"
+
+#root config
+root_username: "root"
+root_old_password: "7WEb281s_g43"
+root_new_password: "7WEb281s_g43"
+
+#web app config
+web_app_user: "nodeapp"
+web_app_password: "bla80a7dg8ayt8dg9y98ae8g9yae"
+web_app_host: 192.168.100.1

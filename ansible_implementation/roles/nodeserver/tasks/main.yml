@@ -1,0 +1,141 @@
+---
+# tasks file for nodeserver
+
+- name: Create Folder config
+  file: 
+   path: "{{ node_config_dest }}"
+   recurse: yes
+   state: directory
+
+
+- name: copy config file for web server
+  template:
+    src: config.j2
+    dest: "{{ node_config_dest }}/{{ node_config_dest_filename}}"
+    owner: root
+    mode: 0600
+   
+
+
+
+- name: Create Folder ssl ca dest
+  file: 
+   path: "{{ ssl_ca_dest }}"
+   recurse: yes
+   state: directory
+
+- name: Create Folder ssl key dest
+  file: 
+   path: "{{ ssl_key_dest }}"
+   recurse: yes
+   state: directory
+   
+- name: copy ca ssl for server
+  copy:
+    src: "{{ ssl_ca_src }}"
+    dest: "{{ ssl_ca_dest }}/{{ ssl_ca_dest_filename }}"
+    owner: root
+    mode: 0640
+
+
+
+- name: copy key ssl file for server
+  copy:
+    src: "{{ ssl_key_src }}"
+    dest: "{{ ssl_key_dest }}/{{ ssl_key_dest_filename }}"
+    owner: root
+    mode: 0600
+
+
+- name: Create Folder ssl cert dest
+  file: 
+   path: "{{ ssl_cert_dest }}"
+   recurse: yes
+   state: directory
+ 
+- name: copy cert file for server
+  copy:
+    src: "{{ ssl_cert_src }}"
+    dest: "{{ ssl_cert_dest }}/{{ ssl_cert_dest_filename }}"
+    owner: root
+    mode: 0644
+
+
+- name: Create Folder Mariadb SSL cert
+  file: 
+   path: "{{ mariadb_ssl_cert_dest }}"
+   recurse: yes
+   state: directory
+ 
+- name: copy Mariadb cert file for server
+  copy:
+    src: "{{ mariadb_ssl_cert_src }}"
+    dest: "{{ mariadb_ssl_cert_dest }}/{{ mariadb_ssl_cert_dest_filename }}"
+    owner: root
+    mode: 0644  
+
+
+
+- name: Ensure the system can use the HTTPS transport for APT
+  stat:
+    path: /usr/lib/apt/methods/https
+  register: apt_https_transport
+
+- name: Install HTTPS transport for APT
+  apt:
+    pkg: apt-transport-https
+    state: present
+  when: not apt_https_transport.stat.exists
+
+- name: Install GPG
+  apt:
+    pkg: gnupg
+    state: present
+
+- name: add apt key for nodesource
+  apt_key: url=https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+
+    
+    
+- name: Add NodeSource deb repository
+  apt_repository:
+    repo: 'deb https://deb.nodesource.com/node_{{ nodejs_version }} {{ ansible_distribution_release }} main'
+    state: present
+    update_cache: yes
+
+ 
+- name: Install Node
+  apt:
+    name: nodejs
+    state: present
+    update-cache: true
+ 
+- name: Install pm2
+  npm:
+    name: pm2
+    global: yes
+    state: present
+
+- name: "Stop old server if it exists"
+  command: pm2 delete node-app
+  ignore_errors: yes
+    
+- name: Install Git
+  apt:
+    name: git
+    state: present
+
+- name: Clone/Update the repo
+  git:
+    repo: "{{ git_url }}"
+    dest: "{{ release_path }}"
+    accept_hostkey: yes
+    key_file: ~/.ssh/id_rsa
+
+- name: Install/Update packages based on package.json.
+  npm:
+    path: "{{ release_path }}"
+
+
+- name: Start pm2 web server
+  command: pm2 start {{ release_path }}/server.js --name node-app

@@ -1,0 +1,173 @@
+---
+# tasks file for mariadb
+- name: Install apt utils
+  apt:
+    name: apt-utils
+    state: latest
+
+
+- name: Install pip
+  apt: 
+    name: python-pip
+    state: latest
+    update_cache: yes
+
+- name: Install mysqllib
+  apt: 
+    name: libmysqlclient-dev
+    state: latest
+    update_cache: yes
+
+- name: Install Mysql-python
+  pip: 
+    name: MYSQL-python
+
+- name: Create Folder for schema
+  file: 
+   path: "{{ mariadb_schema_dest }}"
+   recurse: yes
+   state: directory
+
+- name: copy schema file
+  copy:
+    src: "{{ mariadb_schema_src }}"
+    dest: "{{ mariadb_schema_dest }}/{{ mariadb_schema_dest_file }}"
+    owner: root
+    mode: 0600
+
+
+- name: Create Folder ssl ca dest
+  file: 
+   path: "{{ ssl_ca_dest }}"
+   recurse: yes
+   state: directory
+
+- name: Create Folder ssl key dest
+  file: 
+   path: "{{ ssl_key_dest }}"
+   recurse: yes
+   state: directory
+   
+- name: copy ca ssl for server
+  copy:
+    src: "{{ ssl_ca_src }}"
+    dest: "{{ ssl_ca_dest }}/{{ ssl_ca_dest_filename }}"
+    owner: mysql
+    group: mysql
+    mode: 0640
+
+
+
+- name: copy key ssl file for server
+  copy:
+    src: "{{ ssl_key_src }}"
+    dest: "{{ ssl_key_dest }}/{{ ssl_key_dest_filename }}"
+    owner: mysql
+    group: mysql
+    mode: 0600
+
+
+- name: Create Folder ssl cert dest
+  file: 
+   path: "{{ ssl_cert_dest }}"
+   recurse: yes
+   state: directory
+ 
+- name: copy cert file for server
+  copy:
+    src: "{{ ssl_cert_src }}"
+    dest: "{{ ssl_cert_dest }}/{{ ssl_cert_dest_filename }}"
+    owner: mysql
+    group: mysql
+    mode: 0644
+
+- name: ensure server is configured
+  template:
+    src: server.cnf.j2
+    dest: "/etc/mysql/conf.d/server-custom.cnf"
+    owner: root
+    group: root
+
+- name: start sql service and enable the service
+  service:
+    name: mysql
+    state: started
+    enabled: true
+
+- name: Removes the MySQL test database
+  mysql_db: 
+    db: test 
+    state: absent
+    login_user: "{{ root_username }}"
+    login_password: "{{ root_new_password }}"
+
+
+- name: Set/change root password
+  mysql_user:
+    name: "{{ root_username }}"
+    password: "{{ root_new_password }}"
+    check_implicit_admin: yes
+    state: present
+    login_user: "{{ root_username }}"
+    login_password: "{{ root_old_password }}"
+    priv: "*.*:ALL,GRANT"
+    host_all: yes
+        
+
+- name: Deletes anonymous MySQL server user for ansible_fqdn
+  mysql_user: 
+    user: ""
+    host: "{{ ansible_fqdn }}" 
+    state: "absent"
+    login_user: "{{ root_username }}"
+    login_password: "{{ root_old_password }}"
+
+
+- name: Deletes anonymous MySQL server user for localhost
+  mysql_user: 
+    user: ""
+    state: "absent"
+    login_user: "{{ root_username }}"
+    login_password: "{{ root_old_password }}"
+
+
+- name: Import preferencedb schema
+  mysql_db:
+    state: import
+    name: all
+    target: "{{ mariadb_schema_dest }}/{{ mariadb_schema_dest_file }}"
+    login_user: "{{ root_username }}"
+    login_password: "{{ root_new_password }}"
+
+
+
+- name: Create user and grant web app access to preference DB
+  mysql_user:
+    name: "{{ web_app_user }}"
+    password: "{{ web_app_password }}"
+    priv: 'preferencedb.preferences:SELECT,INSERT'
+    state: present
+    login_user: "{{ root_username }}"
+    login_password: "{{ root_new_password }}"
+    host: "{{ web_app_host }}"
+
+- name: force ssl use for web app user
+  mysql_user:
+    name: "{{ web_app_user }}"
+    password: "{{ web_app_password }}"
+    append_privs: true
+    priv: '*.*:REQUIRESSL'
+    state: present
+    login_user: "{{ root_username }}"
+    login_password: "{{ root_new_password }}"
+    host_all: yes
+
+ 
+- name: start sql service and enable the service
+  service:
+    name: mysql
+    state: restarted
+
+
+
+

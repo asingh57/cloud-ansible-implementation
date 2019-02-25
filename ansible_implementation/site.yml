@@ -1,0 +1,28 @@
+#!/usr/bin/env ansible-playbook
+
+---
+
+- hosts: all
+  gather_facts: False
+  tasks:
+  - name: install python 2
+    raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+
+- hosts: all
+  become: true
+  gather_facts: true
+
+- hosts: dbserver
+  strategy: free
+  remote_user: root
+  roles:
+    - mariadb
+
+- hosts: webserver
+  strategy: free
+  remote_user: root
+  roles:
+    - nodeserver
+  
+
+

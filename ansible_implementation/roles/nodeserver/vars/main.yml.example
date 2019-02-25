@@ -1,0 +1,31 @@
+---
+# vars file for nodeserver
+
+git_url: "git@github.com:asingh57/node_cats_sample.git"
+#where app should be saved and launched
+release_path: "/app_release"
+#config file for web app
+node_config_dest: "/config"
+node_config_dest_filename: "config.json"
+
+
+#ssl file locations and destinations for web app
+ssl_ca_src: "/etc/ssl/private/abhisingh_ca.ca-bundle"
+ssl_key_src: "/etc/ssl/private/abhisingh_ca.key"
+ssl_cert_src: "/etc/ssl/certs/abhisingh_ca.crt"
+ssl_ca_dest: "/etc/ssl/private/"
+ssl_ca_dest_filename: "a.ca-bundle"
+ssl_key_dest: "/etc/ssl/private/"
+ssl_key_dest_filename: "a.key"
+ssl_cert_dest: "/etc/ssl/certs/"
+ssl_cert_dest_filename: "a.crt"
+
+
+#ssl file for mariadb to verify custom signed cert at server
+mariadb_ssl_cert_src: "/etc/ssl/private/mariadb/server-cert.pem"
+mariadb_ssl_cert_dest: "/etc/ssl/private/mariadb"
+mariadb_ssl_cert_dest_filename: "server-cert.pem"
+
+#mariadb username and pass
+web_app_user: ""
+web_app_password: ""

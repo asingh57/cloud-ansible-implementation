@@ -1,0 +1,20 @@
+{
+  "development": {
+    "node_port": 443,
+    "database":{
+      "user": "{{ web_app_user }}",
+      "password" : "{{ web_app_password }}",
+      "name": "preferencedb",
+      "rowsAsArray":true,    
+      "port":3306,
+      "host":"abhisingh.ca",
+      "ssl_cert": "/etc/ssl/private/mariadb/server-cert.pem"
+    },
+	"ssl_ca":"{{ ssl_ca_dest }}/{{ ssl_ca_dest_filename }}",
+	"ssl_key": "{{ ssl_key_dest }}/{{ ssl_key_dest_filename }}",
+	"ssl_cert": "{{ ssl_cert_dest }}/{{ ssl_cert_dest_filename }}"
+    },
+  "production": {
+    }
+}
+

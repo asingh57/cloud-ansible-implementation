@@ -12,6 +12,7 @@ run_command(){
 		echo -e "$@ failed \n">&2
 		echo -e 'Ansible system setup failed, rolling back changes\n' >&2;
 		
+
 		#delete all dockers
 		if [[ ! -z "$control_machine_name" ]] ; then
 			docker stop $control_machine_name
@@ -52,17 +53,16 @@ run_command bash docker_setup_script.sh -s $ctrl_ssh:22 -g keystore control_mach
 db_server_name="db_serv"
 port=$[ctrl_ssh+100]
 db_ssh=$(get_free_port)
-run_command bash docker_setup_script.sh -s $db_ssh:22 -p 443:443 $db_server_name
+run_command bash docker_setup_script.sh -s $db_ssh:22 -p 3306:3306 -x 7WEb281s_g43 -g keystore database_server $db_server_name
+#change -x argument to change db password
 web_server_name="web_serv"
 port=$[db_ssh+100]
 web_ssh=$(get_free_port)
-run_command bash docker_setup_script.sh -s $web_ssh:22 -p 3306:3306 -g keystore $web_server_name
+run_command bash docker_setup_script.sh -s $web_ssh:22 -p 443:443 -g keystore other $web_server_name
 
 
-printf "\n\n\n\n\n"
 docker exec $db_server_name bash -c "cat /root/.ssh/authorized_keys"
 docker exec $web_server_name bash -c "cat /root/.ssh/authorized_keys"
-printf "\n\n\n\n\n"
 ############################
 #give access of web and db servers to ansible control machine
 ctrl_key=$( cat keystore/$control_machine_name.pub )
@@ -73,15 +73,18 @@ docker exec $db_server_name /etc/init.d/ssh restart
 docker exec $web_server_name /etc/init.d/ssh restart
 unset ctrl_key
 ###########################
-printf "\n\n\n\n\n"
 docker exec $db_server_name bash -c "cat /root/.ssh/authorized_keys"
 docker exec $web_server_name bash -c "cat /root/.ssh/authorized_keys"
-printf "\n\n\n\n\n"
+
+###########################
+#copy ansible playbooks into the ansible machine
+docker exec $control_machine_name bash -c "mkdir /root/ansible_docs"
+docker cp ansible_docs/. $control_machine_name:/root/ansible_docs/
 
 
-echo Control server ssh port $ctrl_ssh
-echo Db server ssh port $db_ssh
-echo Web server ssh port $web_ssh
+echo Control server running at ssh port $ctrl_ssh
+echo Db server running ssh port at $db_ssh
+echo Web server running ssh port at $web_ssh
 
 
 

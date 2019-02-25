@@ -1,0 +1,7 @@
+
+[webserver]
+web_s ansible_ssh_host=abhisingh.ca ansible_port=1224 ansible_ssh_user=root
+
+[dbserver]
+db_s ansible_ssh_host=abhisingh.ca ansible_port=1124 ansible_ssh_user=root
+

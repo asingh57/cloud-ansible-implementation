@@ -1,0 +1,11 @@
+[mysqld]
+{% if ssl_ca_dest %}
+ssl-ca = {{ ssl_ca_dest }}/{{ ssl_ca_dest_filename }}
+{% endif %}
+{% if ssl_cert_dest %}
+ssl-cert = {{ ssl_cert_dest }}/{{ ssl_cert_dest_filename }}
+{% endif %}
+{% if ssl_key_dest %}
+ssl-key = {{ ssl_key_dest }}/{{ ssl_key_dest_filename }}
+{% endif %}
+bind-address = 0.0.0.0
