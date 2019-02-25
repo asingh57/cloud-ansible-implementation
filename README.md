@@ -1,6 +1,6 @@
 # Cloud Ansible Implementation
 
-A simple implementation for Ansible-Nodejs-Mariadb on 3 debian docker containers on the same machine
+A simple implementation for Ansible-Nodejs-Mariadb on 3 debian docker containers on the same machine. Note that the ansible playbooks can easily ported to any other devian based machines that are ssh accessible from your machine and the dockers can be skipped altogether.
 
 Note: You should configure the ansible playbooks according to your needs (update the github repo url, install additional packages/dependencies etc) before you do any of the steps below
 
@@ -43,9 +43,10 @@ Now simply run the bash script inside the cloned git repo folder to establish th
 ./server_setup.sh
 ```
 
-Three docker containers: ctrl_mach, db_serv, web_serv will be established. ctrl_mach will have the latest version of ansible installed. You have ssh access to all machines
-The application finds free ports and maps port 22 (default ssh) of internal machine to an unused port of the host. It also maps https and mariadb ports respectively
-In addition, ctrl_mach is configured for ssh access to the other two docker containers.
+Three docker containers: ctrl_mach, db_serv, web_serv will be established. ctrl_mach will have the latest version of ansible installed. You have ssh access to all machines using private key
+In addition ctrl_mach has access to both db_serv and web_serv via ssh
+The application finds free ports and maps port 22 (default ssh) of internal machine to an unused port of the host. It also maps https 443 and mariadb 3306 ports respectively
+
 
 The above command will also list the ssh ports all your containers are available on
 Alternatively, to find which host your dockers mapped to do
@@ -110,8 +111,9 @@ ssh root@localhost -p 1024
 
 Once the above have been configured, do
 ```bash
-ansible-playbook site.yml  -i production
+ansible-playbook site.yml  -i production --ask-vault-pass
 ```
+--ask-vault-pass is required if you encrypted your variables for the two books
 
 This should successfully deploy your web app
 
